@@ -35,21 +35,36 @@ export class LGClient {
   ) {
     this.log = log;
     
+    // Validate IP address
+    if (!ipAddress || ipAddress === 'undefined' || ipAddress === 'null') {
+      this.log.error(`Invalid IP address provided: ${ipAddress}. TV connection will fail.`);
+    }
+    
     // Initialize WebOS client and commands
     this.webOSClient = new WebOSClient(ipAddress, clientKey, this.log);
     this.webOSCommands = new WebOSCommands(this.webOSClient, log);
 
-    // Initialize ThinQ if credentials are provided
-    if (macAddress && token) {
-      this.thinQAuth = new ThinQAuth(
-        this.log,
-        this.thinQUsername!,
-        this.thinQPassword!,
-        this.thinQCountry,
-        this.thinQLanguage,
-        token
-      );
-      this.thinQCommands = new ThinQCommands(this.thinQAuth, macAddress);
+    // Initialize ThinQ if both username and password are provided
+    if (thinQUsername && thinQPassword && macAddress) {
+      try {
+        this.log.debug(`Initializing ThinQ with username ${thinQUsername} and country ${thinQCountry}`);
+        this.thinQAuth = new ThinQAuth(
+          this.log,
+          thinQUsername,
+          thinQPassword,
+          thinQCountry,
+          thinQLanguage
+        );
+        
+        if (macAddress) {
+          this.thinQCommands = new ThinQCommands(this.thinQAuth, macAddress);
+          this.log.debug('ThinQ commands initialized with MAC address: ' + macAddress);
+        } else {
+          this.log.warn('MAC address not provided - ThinQ power control will be limited');
+        }
+      } catch (error) {
+        this.log.error('Failed to initialize ThinQ:', error instanceof Error ? error.message : String(error));
+      }
     }
 
     // Set up event handlers
@@ -78,24 +93,35 @@ export class LGClient {
   async connect(): Promise<boolean> {
     let connected = false;
 
+    // Validate IP address again before connecting
+    if (!this.ipAddress || this.ipAddress === 'undefined' || this.ipAddress === 'null') {
+      this.log.error(`Cannot connect: Invalid IP address: "${this.ipAddress}"`);
+      this.connected = false;
+      return false;
+    }
+
     // First, try WebOS direct connection
     try {
-      this.log.debug('Attempting to connect via WebOS...');
+      this.log.debug(`Attempting to connect via WebOS to ${this.ipAddress}...`);
       connected = await this.webOSClient.connect();
       
       if (connected) {
-        this.log.info('Connected to TV via WebOS');
+        this.log.info(`Connected to TV via WebOS at ${this.ipAddress}`);
         this.connected = true;
         return true;
       }
     } catch (error) {
-      this.log.error('WebOS connection failed:', error instanceof Error ? error.message : String(error));
+      this.log.error(`WebOS connection failed for ${this.ipAddress}:`, error instanceof Error ? error.message : String(error));
     }
 
     // If WebOS fails and ThinQ client exists, try ThinQ
     if (!connected && this.thinQCommands) {
       try {
-        this.log.debug('WebOS connection failed, trying ThinQ...');
+        this.log.debug('WebOS connection failed, trying ThinQ API...');
+        
+        if (!this.thinQAuth) {
+          throw new Error('ThinQ authentication not initialized properly');
+        }
         
         // Initialize ThinQ client if needed
         await this.thinQCommands.initialize();
@@ -104,16 +130,20 @@ export class LGClient {
         connected = await this.thinQCommands.authenticate();
         
         if (connected) {
-          this.log.info('Connected to TV via ThinQ');
+          this.log.info('Connected to TV via ThinQ API');
           this.connected = true;
           return true;
+        } else {
+          this.log.warn('ThinQ API authentication successful but unable to connect to TV');
         }
       } catch (error) {
         this.log.error('ThinQ connection failed:', error instanceof Error ? error.message : String(error));
       }
+    } else if (!this.thinQCommands && this.thinQUsername && this.thinQPassword) {
+      this.log.warn('ThinQ credentials provided but ThinQ client initialization failed');
     }
 
-    this.log.error('Failed to connect to TV via any method');
+    this.log.error(`Failed to connect to TV "${this.ipAddress}" via any method`);
     this.connected = false;
     return false;
   }

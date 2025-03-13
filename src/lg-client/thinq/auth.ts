@@ -464,6 +464,7 @@ export class ThinQAuth {
             'x-thinq-application-key': LG_API_KEY,
             'x-thinq-security-key': LG_SECRET_KEY,
           },
+          timeout: 10000,
         });
         
         const signatureResult = signatureResponse.data;
@@ -482,7 +483,7 @@ export class ThinQAuth {
       const gatewayUrl = `${this.gateway}${API_ENDPOINTS.gateway}`;
       this.log.debug(`Trying gateway URL: ${gatewayUrl}`);
       
-      const gatewayResponse = await axios.get(gatewayUrl);
+      const gatewayResponse = await axios.get(gatewayUrl, { timeout: 10000 });
       const gatewayResult = gatewayResponse.data;
       
       // Get login signature
@@ -497,6 +498,7 @@ export class ThinQAuth {
           'x-thinq-application-key': LG_API_KEY,
           'x-thinq-security-key': LG_SECRET_KEY,
         },
+        timeout: 10000,
       });
       
       const signatureResult = signatureResponse.data;

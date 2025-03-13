@@ -94,11 +94,58 @@ export class LGTVPlatform implements DynamicPlatformPlugin {
   }
 
   /**
+   * Remove duplicate accessories from the platform
+   */
+  private removeDuplicateAccessories(): void {
+    // Map to track accessories by their display name
+    const accessoriesByName = new Map<string, PlatformAccessory[]>();
+    
+    // Group accessories by display name
+    this.accessories.forEach(accessory => {
+      const name = accessory.displayName;
+      if (!accessoriesByName.has(name)) {
+        accessoriesByName.set(name, []);
+      }
+      accessoriesByName.get(name)!.push(accessory);
+    });
+    
+    // Find duplicate accessories (same name but different UUIDs)
+    for (const [name, accessories] of accessoriesByName.entries()) {
+      if (accessories.length > 1) {
+        this.log.warn(`Found ${accessories.length} accessories with the same name "${name}". Removing duplicates.`);
+        
+        // Keep the first accessory, remove the rest
+        const keepAccessory = accessories[0];
+        const removeAccessories = accessories.slice(1);
+        
+        this.log.debug(`Keeping accessory with UUID ${keepAccessory.UUID}`);
+        
+        // Remove duplicate accessories from HomeKit and our cache
+        removeAccessories.forEach(accessory => {
+          this.log.debug(`Removing duplicate accessory with UUID ${accessory.UUID}`);
+          
+          // Remove from HomeKit
+          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+          
+          // Find and remove from our accessories array
+          const accessoryIndex = this.accessories.findIndex(a => a.UUID === accessory.UUID);
+          if (accessoryIndex !== -1) {
+            this.accessories.splice(accessoryIndex, 1);
+          }
+        });
+      }
+    }
+  }
+
+  /**
    * This is an example method showing how to register discovered accessories.
    * Accessories must only be registered once, previously created accessories
    * must not be registered again to prevent "duplicate UUID" errors.
    */
   async discoverDevices(): Promise<void> {
+    // First, remove any duplicate accessories that may exist in the cache
+    this.removeDuplicateAccessories();
+    
     // Get TVs from config
     let tvs = this.config.tvs || [];
     
@@ -128,34 +175,35 @@ export class LGTVPlatform implements DynamicPlatformPlugin {
             const deviceName = tvDevice.name || tvDevice.alias || tvDevice.modelName || 'LG TV';
             const deviceId = tvDevice.deviceId || tvDevice.id;
             
-            // Check if this TV is already in the config by deviceId or name
-            const existingTv = tvs.find(tv => 
-              (tv.deviceId && tv.deviceId === deviceId) || 
-              (tv.name && deviceName && tv.name.toLowerCase() === deviceName.toLowerCase())
+            // Check if this TV is already in the config
+            const existingTv = tvs.find(configTv => 
+              (configTv.deviceId && configTv.deviceId === deviceId) ||
+              (configTv.ip && tvDevice.ip && configTv.ip === tvDevice.ip) ||
+              (configTv.mac && tvDevice.mac && configTv.mac.toLowerCase() === tvDevice.mac.toLowerCase())
             );
             
             if (!existingTv) {
               this.log.info(`Auto-discovered TV from ThinQ: ${deviceName}`);
               
-              // Create a new TV config
-              const newTv = {
+              // Add the TV to our config
+              tvs.push({
                 name: deviceName,
+                ip: tvDevice.ip || '',
+                mac: tvDevice.mac || '',
                 deviceId: deviceId,
-                // Use IP and MAC from ThinQ if available
-                ip: tvDevice.ip || tvDevice.networkInfo?.ip,
-                mac: tvDevice.mac || tvDevice.networkInfo?.macAddress,
-                volumeSlider: true,
-                turnOffSwitch: true,
-                energySaving: true,
-                inputs: [{ type: 'HDMI' }]
-              };
-              
-              tvs.push(newTv);
+                thinqEnabled: true,
+              });
             }
           }
         }
       } catch (error) {
-        this.log.error('Failed to get devices from ThinQ API:', error);
+        // If ThinQ login fails, log the error but continue using manually configured TVs
+        this.log.error(`Failed to get devices from ThinQ API: ${(error as Error).message}`);
+        
+        // Continue with local TV discovery methods if ThinQ fails
+        if (tvs.length === 0) {
+          this.log.warn('No TVs configured and ThinQ discovery failed. Please add your TVs manually in the Homebridge config.');
+        }
       }
     }
 
@@ -245,50 +293,54 @@ export class LGTVPlatform implements DynamicPlatformPlugin {
     
     this.log.info(`Processing ${processedTVs.length} unique TV configurations`);
 
-    // Register or update accessories for each processed TV
+    // Process each TV and register it
     for (const tv of processedTVs) {
-      // Generate a unique id for the accessory
-      // Try to use MAC address first, then deviceId, then IP, or finally name
-      const identifier = tv.mac || tv.deviceId || tv.ip || tv.name;
-      
-      if (!identifier) {
-        this.log.error('TV configuration is missing required identifiers. Skipping this TV.');
-        continue;
-      }
-      
-      const uuid = this.api.hap.uuid.generate(identifier);
+      try {
+        // Make sure we have a valid IP address
+        if (!tv.ip) {
+          this.log.warn(`TV ${tv.name} does not have a valid IP address. Skipping WebOS initialization.`);
+          continue;
+        }
 
-      // Check if an accessory with the same uuid has already been registered and restored from
-      // the cached devices we stored in the `configureAccessory` method above
-      const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
-
-      if (existingAccessory) {
-        // The accessory already exists
-        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-
-        // Update the accessory context
-        existingAccessory.context.config = tv;
-
-        // Create the accessory handler for the restored accessory
-        new LGTVAccessory(this, existingAccessory);
-
-        // Update accessory cache
-        this.api.updatePlatformAccessories([existingAccessory]);
-      } else {
-        // The accessory does not yet exist, so we need to create it
-        this.log.info('Adding new accessory:', tv.name);
-
-        // Create a new accessory
-        const accessory = new this.api.platformAccessory(tv.name, uuid);
-
-        // Store a copy of the device object in the `accessory.context`
-        accessory.context.config = tv;
-
-        // Create the accessory handler for the newly created accessory
-        new LGTVAccessory(this, accessory);
-
-        // Link the accessory to your platform
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        // Generate a unique identifier that's consistent across restarts
+        // Prefer MAC address, then deviceId, then IP address, and finally name as a last resort
+        const identifier = tv.mac || tv.deviceId || tv.ip || tv.name;
+        const uuid = this.api.hap.uuid.generate(`lg-tv-${identifier.toLowerCase().replace(/[^a-z0-9]/g, '')}`);
+        
+        this.log.debug(`Generated UUID ${uuid} for TV ${tv.name} using identifier: ${identifier}`);
+        
+        // Check if the accessory already exists
+        const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+        
+        if (existingAccessory) {
+          this.log.info(`Restoring existing accessory from cache: ${existingAccessory.displayName}`);
+          
+          // Update accessory context with latest config
+          existingAccessory.context.config = tv;
+          this.api.updatePlatformAccessories([existingAccessory]);
+          
+          // Create the TV accessory handler
+          const lgTvAccessory = new LGTVAccessory(this, existingAccessory);
+          this.configuredTVs.push(lgTvAccessory);
+        } else {
+          // Create a new accessory
+          this.log.info(`Adding new TV accessory: ${tv.name}`);
+          
+          const accessory = new this.api.platformAccessory(tv.name, uuid);
+          accessory.category = this.api.hap.Categories.TELEVISION;
+          
+          // Store TV config in context
+          accessory.context.config = tv;
+          
+          // Create the TV accessory handler
+          const lgTvAccessory = new LGTVAccessory(this, accessory);
+          this.configuredTVs.push(lgTvAccessory);
+          
+          // Register the accessory
+          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        }
+      } catch (error) {
+        this.log.error(`Failed to initialize TV ${tv.name}:`, error);
       }
     }
   }

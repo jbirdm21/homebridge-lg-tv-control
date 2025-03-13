@@ -41,8 +41,8 @@ export class WebOSClient extends EventEmitter {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectInterval = 2000;
-  private storageDir: string;
-  private keyFilePath: string;
+  private storageDir: string = path.join(process.env.HOME || '', '.homebridge');
+  private keyFilePath: string = '';
   private connected = false;
   private commandSocketUrl: string | null = null;
   private commandWs: WebSocket | null = null;
@@ -57,12 +57,17 @@ export class WebOSClient extends EventEmitter {
   ) {
     super();
     
+    // Validate IP address
+    if (!ipAddress || ipAddress === 'undefined' || ipAddress === 'null') {
+      this.log.error('Invalid IP address provided to WebOS client. TV connection will fail.');
+      return;
+    }
+    
     if (clientKey) {
       this.clientKey = clientKey;
     }
 
     // Set up storage directory
-    this.storageDir = path.join(process.env.HOME || '', '.homebridge');
     if (!fs.existsSync(this.storageDir)) {
       fs.mkdirSync(this.storageDir, { recursive: true });
     }
