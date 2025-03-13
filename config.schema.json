@@ -1,0 +1,272 @@
+{
+  "pluginAlias": "LG-TV-Control",
+  "pluginType": "platform",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "LG TV Control",
+        "required": true
+      },
+      "thinqUsername": {
+        "title": "LG ThinQ Username",
+        "type": "string",
+        "description": "Your LG account email address for ThinQ API access"
+      },
+      "thinqPassword": {
+        "title": "LG ThinQ Password",
+        "type": "string",
+        "description": "Your LG account password for ThinQ API access",
+        "format": "password"
+      },
+      "thinqCountry": {
+        "title": "ThinQ Country",
+        "type": "string",
+        "default": "US",
+        "oneOf": [
+          { "title": "United States", "enum": ["US"] },
+          { "title": "Canada", "enum": ["CA"] },
+          { "title": "United Kingdom", "enum": ["UK"] },
+          { "title": "Europe", "enum": ["EU"] },
+          { "title": "Australia", "enum": ["AU"] },
+          { "title": "Japan", "enum": ["JP"] },
+          { "title": "Korea", "enum": ["KR"] }
+        ]
+      },
+      "thinqLanguage": {
+        "title": "ThinQ Language",
+        "type": "string",
+        "default": "en-US",
+        "oneOf": [
+          { "title": "English (US)", "enum": ["en-US"] },
+          { "title": "English (UK)", "enum": ["en-GB"] },
+          { "title": "French", "enum": ["fr-FR"] },
+          { "title": "German", "enum": ["de-DE"] },
+          { "title": "Spanish", "enum": ["es-ES"] },
+          { "title": "Italian", "enum": ["it-IT"] },
+          { "title": "Korean", "enum": ["ko-KR"] },
+          { "title": "Japanese", "enum": ["ja-JP"] }
+        ]
+      },
+      "debug": {
+        "title": "Debug Logging",
+        "type": "boolean",
+        "default": false,
+        "description": "Enable detailed debug logging"
+      },
+      "autoDiscover": {
+        "title": "Auto-discover TVs",
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically discover LG TVs on your network"
+      },
+      "tvs": {
+        "type": "array",
+        "title": "TVs",
+        "description": "Configure your LG TVs",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "TV Name",
+              "type": "string",
+              "default": "Living Room TV",
+              "required": true
+            },
+            "ip": {
+              "title": "IP Address",
+              "type": "string",
+              "format": "ipv4",
+              "placeholder": "192.168.1.100",
+              "description": "IP address of your LG TV"
+            },
+            "mac": {
+              "title": "MAC Address",
+              "type": "string",
+              "placeholder": "AA:BB:CC:DD:EE:FF",
+              "description": "MAC address of your LG TV (required for power on functionality)"
+            },
+            "clientKey": {
+              "title": "WebOS Client Key",
+              "type": "string",
+              "description": "WebOS client key (will be obtained automatically if not provided)",
+              "placeholder": "Leave blank to generate automatically"
+            },
+            "deviceId": {
+              "title": "ThinQ Device ID",
+              "type": "string",
+              "description": "ThinQ device ID (will be discovered automatically if not provided)",
+              "placeholder": "Leave blank to discover automatically"
+            },
+            "volumeSlider": {
+              "title": "Show Volume Slider",
+              "type": "boolean",
+              "default": true,
+              "description": "Add a Fan service to control volume via a slider"
+            },
+            "turnOffSwitch": {
+              "title": "Add Turn Off Switch",
+              "type": "boolean",
+              "default": true,
+              "description": "Add a dedicated switch to turn off the TV"
+            },
+            "energySaving": {
+              "title": "Energy Saving Control",
+              "type": "boolean",
+              "default": true,
+              "description": "Add a switch to control energy saving mode (requires ThinQ)"
+            },
+            "aiRecommendation": {
+              "title": "AI Recommendation Control",
+              "type": "boolean",
+              "default": true,
+              "description": "Add a switch to control AI content recommendations (requires ThinQ)"
+            },
+            "inputs": {
+              "type": "array",
+              "title": "Input Sources",
+              "description": "Configure input sources for this TV",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "title": "Name",
+                    "type": "string",
+                    "description": "Display name for this input source",
+                    "required": true
+                  },
+                  "id": {
+                    "title": "ID",
+                    "type": "string",
+                    "description": "Identifier for this input source as used by the TV",
+                    "required": true
+                  },
+                  "type": {
+                    "title": "Type",
+                    "type": "string",
+                    "default": "HDMI",
+                    "oneOf": [
+                      { "title": "HDMI", "enum": ["HDMI"] },
+                      { "title": "APPLICATION", "enum": ["APPLICATION"] },
+                      { "title": "TUNER", "enum": ["TUNER"] },
+                      { "title": "COMPOSITE", "enum": ["COMPOSITE"] },
+                      { "title": "COMPONENT", "enum": ["COMPONENT"] },
+                      { "title": "AV", "enum": ["AV"] },
+                      { "title": "OTHER", "enum": ["OTHER"] }
+                    ],
+                    "description": "Type of input source"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced Settings",
+        "description": "Advanced configuration options",
+        "properties": {
+          "connectionTimeout": {
+            "title": "Connection Timeout (ms)",
+            "type": "integer",
+            "default": 10000,
+            "description": "Timeout for WebOS connections in milliseconds"
+          },
+          "reconnectInterval": {
+            "title": "Reconnect Interval (ms)",
+            "type": "integer",
+            "default": 5000,
+            "description": "Interval between reconnection attempts in milliseconds"
+          },
+          "maxReconnectAttempts": {
+            "title": "Max Reconnect Attempts",
+            "type": "integer",
+            "default": 5,
+            "description": "Maximum number of automatic reconnection attempts"
+          },
+          "cloudPollingInterval": {
+            "title": "ThinQ Cloud Polling Interval (s)",
+            "type": "integer",
+            "default": 60,
+            "description": "Interval for polling the ThinQ cloud for status updates in seconds"
+          },
+          "controlPriority": {
+            "title": "Control Priority",
+            "type": "string",
+            "default": "local-first",
+            "oneOf": [
+              { "title": "Local First", "enum": ["local-first"] },
+              { "title": "Cloud First", "enum": ["cloud-first"] },
+              { "title": "Local Only", "enum": ["local-only"] },
+              { "title": "Cloud Only", "enum": ["cloud-only"] }
+            ],
+            "description": "Priority for control methods"
+          }
+        }
+      }
+    }
+  },
+  "layout": [
+    {
+      "type": "fieldset",
+      "title": "General Settings",
+      "items": [
+        "name",
+        "thinqUsername",
+        "thinqPassword",
+        "thinqCountry",
+        "thinqLanguage",
+        "debug",
+        "autoDiscover"
+      ]
+    },
+    {
+      "type": "array",
+      "title": "TVs",
+      "items": [
+        {
+          "type": "fieldset",
+          "title": "TV",
+          "items": [
+            "tvs[].name",
+            "tvs[].ip",
+            "tvs[].mac",
+            "tvs[].clientKey",
+            "tvs[].deviceId",
+            "tvs[].volumeSlider",
+            "tvs[].turnOffSwitch",
+            "tvs[].energySaving",
+            "tvs[].aiRecommendation"
+          ]
+        },
+        {
+          "type": "array",
+          "title": "Inputs",
+          "items": [
+            "tvs[].inputs[].name",
+            "tvs[].inputs[].id",
+            "tvs[].inputs[].type"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced Settings",
+      "items": [
+        "advanced.connectionTimeout",
+        "advanced.reconnectInterval",
+        "advanced.maxReconnectAttempts",
+        "advanced.cloudPollingInterval",
+        "advanced.controlPriority"
+      ]
+    }
+  ],
+  "display": {
+    "headerDisplay": "This plugin allows you to control your LG TV with HomeKit using both local WebOS and LG ThinQ API integration."
+  }
+} 

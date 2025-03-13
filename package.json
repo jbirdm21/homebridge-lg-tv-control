@@ -1,0 +1,53 @@
+{
+  "name": "homebridge-lg-tv-control",
+  "version": "1.0.0",
+  "description": "Homebridge plugin for controlling LG TVs using WebOS and ThinQ APIs",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=14.18.1",
+    "homebridge": ">=1.3.5"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "homekit",
+    "lg",
+    "lg-tv",
+    "webos",
+    "thinq",
+    "oled"
+  ],
+  "scripts": {
+    "lint": "eslint src/**.ts",
+    "watch": "npm run build && npm link && nodemon",
+    "build": "rimraf ./dist && tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node ./dist/test.js"
+  },
+  "author": "jbirdm21",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jbirdm21/homebridge-lg-tv-control.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jbirdm21/homebridge-lg-tv-control/issues"
+  },
+  "homepage": "https://github.com/jbirdm21/homebridge-lg-tv-control#readme",
+  "devDependencies": {
+    "@types/node": "^16.10.9",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.1",
+    "homebridge": "^1.3.5",
+    "nodemon": "^2.0.13",
+    "rimraf": "^3.0.2",
+    "ts-node": "^10.3.0",
+    "typescript": "^4.4.4"
+  },
+  "dependencies": {
+    "axios": "^0.24.0",
+    "wake_on_lan": "^1.0.0",
+    "wol": "^1.0.7",
+    "ws": "^8.2.3"
+  }
+}

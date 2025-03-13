@@ -1,0 +1,1 @@
+{"version":3,"file":"wake-on-lan.d.ts","sourceRoot":"","sources":["../../src/utils/wake-on-lan.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,MAAM,EAAE,MAAM,YAAY,CAAC;AAEpC;;GAEG;AACH,wBAAsB,SAAS,CAAC,UAAU,EAAE,MAAM,EAAE,OAAO,GAAE;IAC3D,OAAO,CAAC,EAAE,MAAM,CAAC;IACjB,IAAI,CAAC,EAAE,MAAM,CAAC;IACd,GAAG,CAAC,EAAE,MAAM,CAAC;CACT,GAAG,OAAO,CAAC,OAAO,CAAC,CAgExB"}
