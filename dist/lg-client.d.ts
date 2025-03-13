@@ -7,22 +7,22 @@ export declare class LGClient {
     private readonly ipAddress;
     private readonly macAddress;
     private readonly clientKey?;
-    private readonly thinqUsername?;
-    private readonly thinqPassword?;
-    private readonly thinqCountry;
-    private readonly thinqLanguage;
+    private readonly thinQUsername?;
+    private readonly thinQPassword?;
+    private readonly thinQCountry;
+    private readonly thinQLanguage;
     private readonly token?;
     private readonly log;
-    private webosClient;
-    private webosCommands;
-    private thinqAuth?;
-    private thinqCommands?;
+    private webOSClient;
+    private webOSCommands;
+    private thinQAuth?;
+    private thinQCommands?;
     private connected;
     private deviceId;
     /**
      * Create a new LG Client
      */
-    constructor(log: Logger, ipAddress: string, macAddress: string, clientKey?: string | undefined, thinqUsername?: string | undefined, thinqPassword?: string | undefined, thinqCountry?: string, thinqLanguage?: string, token?: string | undefined);
+    constructor(log: Logger, ipAddress: string, macAddress: string, clientKey?: string | undefined, thinQUsername?: string | undefined, thinQPassword?: string | undefined, thinQCountry?: string, thinQLanguage?: string, token?: string | undefined);
     /**
      * Connect to the TV
      */
@@ -131,5 +131,13 @@ export declare class LGClient {
      * Get current picture mode
      */
     getPictureMode(): Promise<string | null>;
+    /**
+     * Check if a device capability is supported
+     */
+    supportsCapability(capability: string): boolean;
+    /**
+     * Get current power state
+     */
+    isPoweredOn(): Promise<boolean>;
 }
 //# sourceMappingURL=lg-client.d.ts.map

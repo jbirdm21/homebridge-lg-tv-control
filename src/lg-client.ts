@@ -10,10 +10,10 @@ import { ThinQCommands } from './lg-client/thinq/commands';
  */
 export class LGClient {
   private readonly log: Logger;
-  private webosClient: WebOSClient;
-  private webosCommands: WebOSCommands;
-  private thinqAuth?: ThinQAuth;
-  private thinqCommands?: ThinQCommands;
+  private webOSClient: WebOSClient;
+  private webOSCommands: WebOSCommands;
+  private thinQAuth?: ThinQAuth;
+  private thinQCommands?: ThinQCommands;
   
   // State
   private connected = false;
@@ -27,47 +27,47 @@ export class LGClient {
     private readonly ipAddress: string,
     private readonly macAddress: string,
     private readonly clientKey?: string, 
-    private readonly thinqUsername?: string,
-    private readonly thinqPassword?: string,
-    private readonly thinqCountry: string = 'US',
-    private readonly thinqLanguage: string = 'en-US',
+    private readonly thinQUsername?: string,
+    private readonly thinQPassword?: string,
+    private readonly thinQCountry: string = 'US',
+    private readonly thinQLanguage: string = 'en-US',
     private readonly token?: string
   ) {
     this.log = log;
     
     // Initialize WebOS client and commands
-    this.webosClient = new WebOSClient(ipAddress, clientKey, this.log);
-    this.webosCommands = new WebOSCommands(this.webosClient, log);
+    this.webOSClient = new WebOSClient(ipAddress, clientKey, this.log);
+    this.webOSCommands = new WebOSCommands(this.webOSClient, log);
 
     // Initialize ThinQ if credentials are provided
     if (macAddress && token) {
-      this.thinqAuth = new ThinQAuth(
+      this.thinQAuth = new ThinQAuth(
         this.log,
-        this.thinqUsername!,
-        this.thinqPassword!,
-        this.thinqCountry,
-        this.thinqLanguage,
+        this.thinQUsername!,
+        this.thinQPassword!,
+        this.thinQCountry,
+        this.thinQLanguage,
         token
       );
-      this.thinqCommands = new ThinQCommands(this.thinqAuth, macAddress);
+      this.thinQCommands = new ThinQCommands(this.thinQAuth, macAddress);
     }
 
     // Set up event handlers
-    this.webosClient.on('connect', () => {
+    this.webOSClient.on('connect', () => {
       this.connected = true;
       this.log.debug(`WebOS connected to ${this.ipAddress}`);
     });
 
-    this.webosClient.on('disconnect', () => {
+    this.webOSClient.on('disconnect', () => {
       this.connected = false;
       this.log.debug(`WebOS disconnected from ${this.ipAddress}`);
     });
 
-    this.webosClient.on('error', (error) => {
+    this.webOSClient.on('error', (error) => {
       this.log.error(`WebOS client error: ${error}`);
     });
 
-    this.webosClient.on('prompt', () => {
+    this.webOSClient.on('prompt', () => {
       this.log.warn('WebOS client requires pairing. Please accept the prompt on the TV.');
     });
   }
@@ -76,22 +76,53 @@ export class LGClient {
    * Connect to the TV
    */
   async connect(): Promise<boolean> {
+    let connected = false;
+
+    // First, try WebOS direct connection
     try {
-      const connected = await this.webosClient.connect();
-      this.connected = connected;
-      return connected;
+      this.log.debug('Attempting to connect via WebOS...');
+      connected = await this.webOSClient.connect();
+      
+      if (connected) {
+        this.log.info('Connected to TV via WebOS');
+        this.connected = true;
+        return true;
+      }
     } catch (error) {
-      this.log.error('Failed to connect to WebOS:', error);
-      this.connected = false;
-      return false;
+      this.log.error('WebOS connection failed:', error instanceof Error ? error.message : String(error));
     }
+
+    // If WebOS fails and ThinQ client exists, try ThinQ
+    if (!connected && this.thinQCommands) {
+      try {
+        this.log.debug('WebOS connection failed, trying ThinQ...');
+        
+        // Initialize ThinQ client if needed
+        await this.thinQCommands.initialize();
+        
+        // Authenticate with ThinQ
+        connected = await this.thinQCommands.authenticate();
+        
+        if (connected) {
+          this.log.info('Connected to TV via ThinQ');
+          this.connected = true;
+          return true;
+        }
+      } catch (error) {
+        this.log.error('ThinQ connection failed:', error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    this.log.error('Failed to connect to TV via any method');
+    this.connected = false;
+    return false;
   }
 
   /**
    * Disconnect from the TV
    */
   disconnect(): void {
-    this.webosClient.disconnect();
+    this.webOSClient.disconnect();
     this.connected = false;
   }
 
@@ -106,13 +137,13 @@ export class LGClient {
    * Power on the TV
    */
   async powerOn(): Promise<boolean> {
-    if (!this.thinqCommands) {
+    if (!this.thinQCommands) {
       this.log.warn('Cannot power on: ThinQ not configured');
       return false;
     }
 
     try {
-      return await this.thinqCommands.powerOn();
+      return await this.thinQCommands.powerOn();
     } catch (error) {
       this.log.error('Failed to power on via ThinQ:', error);
       return false;
@@ -124,13 +155,13 @@ export class LGClient {
    */
   async powerOff(): Promise<boolean> {
     if (!this.connected) {
-      if (!this.thinqCommands) {
+      if (!this.thinQCommands) {
         this.log.warn('Cannot power off: Not connected and ThinQ not configured');
         return false;
       }
 
       try {
-        return await this.thinqCommands.powerOff();
+        return await this.thinQCommands.powerOff();
       } catch (error) {
         this.log.error('Failed to power off via ThinQ:', error);
         return false;
@@ -138,7 +169,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.powerOff();
+      return await this.webOSCommands.powerOff();
     } catch (error) {
       this.log.error('Failed to power off via WebOS:', error);
       return false;
@@ -155,7 +186,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.getVolume();
+      return await this.webOSCommands.getVolume();
     } catch (error) {
       this.log.error('Failed to get volume:', error);
       return null;
@@ -172,7 +203,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.setVolume(volume);
+      return await this.webOSCommands.setVolume(volume);
     } catch (error) {
       this.log.error('Failed to set volume:', error);
       return false;
@@ -189,7 +220,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.volumeUp();
+      return await this.webOSCommands.volumeUp();
     } catch (error) {
       this.log.error('Failed to increase volume:', error);
       return false;
@@ -206,7 +237,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.volumeDown();
+      return await this.webOSCommands.volumeDown();
     } catch (error) {
       this.log.error('Failed to decrease volume:', error);
       return false;
@@ -223,7 +254,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.setMute(mute);
+      return await this.webOSCommands.setMute(mute);
     } catch (error) {
       this.log.error('Failed to set mute:', error);
       return false;
@@ -240,7 +271,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.getMute();
+      return await this.webOSCommands.getMute();
     } catch (error) {
       this.log.error('Failed to get mute state:', error);
       return false;
@@ -257,7 +288,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.setInput(inputId);
+      return await this.webOSCommands.setInput(inputId);
     } catch (error) {
       this.log.error('Failed to set input:', error);
       return false;
@@ -269,7 +300,7 @@ export class LGClient {
    */
   async getCurrentInput(): Promise<string | null> {
     try {
-      const foregroundApp = await this.webosCommands.getCurrentApp();
+      const foregroundApp = await this.webOSCommands.getCurrentApp();
       if (foregroundApp && foregroundApp.appId) {
         return foregroundApp.appId;
       }
@@ -290,7 +321,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.play();
+      return await this.webOSCommands.play();
     } catch (error) {
       this.log.error('Failed to play:', error);
       return false;
@@ -307,7 +338,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.pause();
+      return await this.webOSCommands.pause();
     } catch (error) {
       this.log.error('Failed to pause:', error);
       return false;
@@ -324,7 +355,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.stop();
+      return await this.webOSCommands.stop();
     } catch (error) {
       this.log.error('Failed to stop:', error);
       return false;
@@ -341,7 +372,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.rewind();
+      return await this.webOSCommands.rewind();
     } catch (error) {
       this.log.error('Failed to rewind:', error);
       return false;
@@ -358,7 +389,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.fastForward();
+      return await this.webOSCommands.fastForward();
     } catch (error) {
       this.log.error('Failed to fast forward:', error);
       return false;
@@ -375,7 +406,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.launchApp(appId);
+      return await this.webOSCommands.launchApp(appId);
     } catch (error) {
       this.log.error(`Failed to launch app ${appId}:`, error);
       return false;
@@ -392,7 +423,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.sendButton(button);
+      return await this.webOSCommands.sendButton(button);
     } catch (error) {
       this.log.error(`Failed to send button ${button}:`, error);
       return false;
@@ -409,7 +440,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.setChannel(channelId);
+      return await this.webOSCommands.setChannel(channelId);
     } catch (error) {
       this.log.error('Failed to set channel:', error);
       return false;
@@ -420,13 +451,13 @@ export class LGClient {
    * Set energy saving mode
    */
   async setEnergySaving(enabled: boolean): Promise<boolean> {
-    if (!this.thinqCommands) {
+    if (!this.thinQCommands) {
       this.log.warn('Cannot set energy saving: ThinQ not configured');
       return false;
     }
 
     try {
-      return await this.thinqCommands.setEnergySaving(enabled ? 'on' : 'off');
+      return await this.thinQCommands.setEnergySaving(enabled ? 'on' : 'off');
     } catch (error) {
       this.log.error('Failed to set energy saving:', error);
       return false;
@@ -437,18 +468,17 @@ export class LGClient {
    * Get energy saving status
    */
   async getEnergySaving(): Promise<boolean> {
-    if (!this.thinqCommands) {
+    if (!this.thinQCommands) {
       this.log.warn('Cannot get energy saving status: ThinQ not configured');
       return false;
     }
 
     try {
-      // This is a placeholder - you'd need to implement the actual API call
-      // in the ThinqCommands class
-      const status = await this.thinqCommands.getStatus();
+      // Use the improved status method
+      const status = await this.thinQCommands.getStatus();
       return status?.energySaving === 'on';
     } catch (error) {
-      this.log.error('Failed to get energy saving status:', error);
+      this.log.error('Failed to get energy saving status:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -457,13 +487,13 @@ export class LGClient {
    * Enable or disable AI recommendations
    */
   async enableAIRecommendation(enabled: boolean): Promise<boolean> {
-    if (!this.thinqCommands) {
+    if (!this.thinQCommands) {
       this.log.warn('Cannot set AI recommendation: ThinQ not configured');
       return false;
     }
 
     try {
-      return await this.thinqCommands.enableAIRecommendation(enabled);
+      return await this.thinQCommands.enableAIRecommendation(enabled);
     } catch (error) {
       this.log.error('Failed to set AI recommendation:', error);
       return false;
@@ -474,18 +504,17 @@ export class LGClient {
    * Get AI recommendation status
    */
   async getAIRecommendation(): Promise<boolean> {
-    if (!this.thinqCommands) {
+    if (!this.thinQCommands) {
       this.log.warn('Cannot get AI recommendation status: ThinQ not configured');
       return false;
     }
 
     try {
-      // This is a placeholder - you'd need to implement the actual API call
-      // in the ThinqCommands class
-      const status = await this.thinqCommands.getStatus();
+      // Use the improved status method
+      const status = await this.thinQCommands.getStatus();
       return status?.aiRecommendation === true;
     } catch (error) {
-      this.log.error('Failed to get AI recommendation status:', error);
+      this.log.error('Failed to get AI recommendation status:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -495,13 +524,13 @@ export class LGClient {
    */
   async setPictureMode(mode: string): Promise<boolean> {
     if (!this.connected) {
-      if (!this.thinqCommands) {
+      if (!this.thinQCommands) {
         this.log.warn('Cannot set picture mode: Not connected and ThinQ not configured');
         return false;
       }
 
       try {
-        return await this.thinqCommands.setPictureMode(mode);
+        return await this.thinQCommands.setPictureMode(mode);
       } catch (error) {
         this.log.error('Failed to set picture mode via ThinQ:', error);
         return false;
@@ -509,7 +538,7 @@ export class LGClient {
     }
 
     try {
-      return await this.webosCommands.setPictureMode(mode);
+      return await this.webOSCommands.setPictureMode(mode);
     } catch (error) {
       this.log.error('Failed to set picture mode via WebOS:', error);
       return false;
@@ -521,17 +550,17 @@ export class LGClient {
    */
   async getPictureMode(): Promise<string | null> {
     if (!this.connected) {
-      if (!this.thinqCommands) {
+      if (!this.thinQCommands) {
         this.log.warn('Cannot get picture mode: Not connected and ThinQ not configured');
         return null;
       }
 
       try {
-        // This is a placeholder - you'd need to implement the actual API call
-        const status = await this.thinqCommands.getStatus();
+        // Use the improved status method
+        const status = await this.thinQCommands.getStatus();
         return status?.pictureMode || null;
       } catch (error) {
-        this.log.error('Failed to get picture mode via ThinQ:', error);
+        this.log.error('Failed to get picture mode via ThinQ:', error instanceof Error ? error.message : String(error));
         return null;
       }
     }
@@ -541,8 +570,39 @@ export class LGClient {
       // For now, we'll return a default value
       return 'standard';
     } catch (error) {
-      this.log.error('Failed to get picture mode via WebOS:', error);
+      this.log.error('Failed to get picture mode via WebOS:', error instanceof Error ? error.message : String(error));
       return null;
     }
+  }
+
+  /**
+   * Check if a device capability is supported
+   */
+  supportsCapability(capability: string): boolean {
+    if (this.thinQCommands) {
+      return this.thinQCommands.supportsCapability(capability);
+    }
+    return false;
+  }
+
+  /**
+   * Get current power state 
+   */
+  async isPoweredOn(): Promise<boolean> {
+    // First try WebOS connection state
+    if (this.connected) {
+      return true;
+    }
+    
+    // If not connected via WebOS, try ThinQ
+    if (this.thinQCommands) {
+      try {
+        return await this.thinQCommands.getPowerState();
+      } catch (error) {
+        this.log.debug('Failed to get power state via ThinQ:', error instanceof Error ? error.message : String(error));
+      }
+    }
+    
+    return false;
   }
 } 

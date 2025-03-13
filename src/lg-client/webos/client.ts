@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import * as WebSocket from 'ws';
+import WebSocket from 'ws';
 import * as wol from 'wake_on_lan';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -115,8 +115,13 @@ export class WebOSClient extends EventEmitter {
    * Connect to the TV
    */
   async connect(): Promise<boolean> {
-    if (this.connectionState !== ConnectionState.DISCONNECTED) {
-      return this.connectionState === ConnectionState.CONNECTED;
+    if (this.connectionState === ConnectionState.CONNECTED) {
+      return true;
+    }
+
+    if (this.connectionState === ConnectionState.CONNECTING) {
+      this.log.debug('Already connecting to TV');
+      return false;
     }
 
     this.connectionState = ConnectionState.CONNECTING;
@@ -125,7 +130,22 @@ export class WebOSClient extends EventEmitter {
       try {
         // Connect WebSocket to TV
         this.log.debug(`Connecting to WebOS TV at ${this.ipAddress}`);
-        this.ws = new WebSocket(`ws://${this.ipAddress}:3000`);
+        
+        try {
+          this.ws = new WebSocket(`ws://${this.ipAddress}:3000`);
+        } catch (wsError) {
+          // Try dynamic import if constructor fails
+          this.log.debug('WebSocket constructor failed, trying dynamic import:', wsError);
+          try {
+            const WS = require('ws');
+            this.ws = new WS(`ws://${this.ipAddress}:3000`);
+          } catch (requireError) {
+            this.log.error('Failed to create WebSocket connection:', requireError);
+            this.connectionState = ConnectionState.DISCONNECTED;
+            resolve(false);
+            return;
+          }
+        }
 
         // Handle WebSocket open event
         this.ws.on('open', () => {

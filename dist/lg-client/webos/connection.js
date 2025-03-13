@@ -22,9 +22,12 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebOSClient = void 0;
-const ws_1 = require("ws");
+const ws_1 = __importDefault(require("ws"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const events_1 = require("events");
@@ -114,7 +117,7 @@ class WebOSClient extends events_1.EventEmitter {
                     reject(new Error('Connection timed out'));
                 }, timeoutMs);
                 // Create the WebSocket connection
-                this.ws = new ws_1.WebSocket(wsUrl);
+                this.ws = new ws_1.default(wsUrl);
                 // Handle WebSocket events
                 this.ws.on('open', () => {
                     this.log.debug(`WebSocket connection established to ${this.ipAddress}`);
@@ -338,7 +341,7 @@ class WebOSClient extends events_1.EventEmitter {
             this.responseCallbacks.delete(id);
         });
         // Close WebSocket if it's still open
-        if (this.ws && this.ws.readyState === ws_1.WebSocket.OPEN) {
+        if (this.ws && this.ws.readyState === ws_1.default.OPEN) {
             this.ws.close();
         }
         this.ws = null;
@@ -366,7 +369,7 @@ class WebOSClient extends events_1.EventEmitter {
         }
         // Set up a new ping interval to keep the connection alive
         this.pingInterval = setInterval(() => {
-            if (this.connected && this.ws && this.ws.readyState === ws_1.WebSocket.OPEN) {
+            if (this.connected && this.ws && this.ws.readyState === ws_1.default.OPEN) {
                 this.sendCommand('ssap://com.webos.service.networkinput/getPointerInputSocket')
                     .catch(error => {
                     this.log.debug(`Ping failed: ${error.message}`);
@@ -375,7 +378,7 @@ class WebOSClient extends events_1.EventEmitter {
         }, 30000); // Send a ping every 30 seconds
     }
     async sendCommand(uri, payload = {}, ignoreClientKey = false) {
-        if (!this.ws || this.ws.readyState !== ws_1.WebSocket.OPEN) {
+        if (!this.ws || this.ws.readyState !== ws_1.default.OPEN) {
             throw new Error('Not connected to TV');
         }
         // Increment the command ID
@@ -483,7 +486,7 @@ class WebOSClient extends events_1.EventEmitter {
      * Send a message to the TV
      */
     sendMessage(message) {
-        if (!this.ws || this.ws.readyState !== ws_1.WebSocket.OPEN) {
+        if (!this.ws || this.ws.readyState !== ws_1.default.OPEN) {
             throw new Error('WebSocket not connected');
         }
         this.log.debug('Sending message:', JSON.stringify(message));

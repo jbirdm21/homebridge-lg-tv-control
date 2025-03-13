@@ -17,7 +17,22 @@ export declare class ThinQAuth {
     private userId;
     private tokenStoragePath;
     private gateway;
+    private messageIdCounter;
     constructor(log: Logger, username: string, password: string, country?: string, language?: string, storageDir?: string, authFilePath?: string | undefined);
+    /**
+     * Generate a unique message ID for request tracking
+     * Based on documentation section 2.3
+     */
+    private generateMessageId;
+    /**
+     * Get standardized headers for API requests
+     * Based on documentation section 2.3
+     */
+    private getStandardHeaders;
+    /**
+     * Parse error response and get meaningful error message
+     */
+    private getErrorMessage;
     /**
      * Get client for API requests
      */
@@ -39,7 +54,7 @@ export declare class ThinQAuth {
      */
     private refreshAccessToken;
     /**
-     * Get devices from ThinQ API
+     * Get devices from ThinQ API with improved error handling and regional endpoints
      */
     getDevices(): Promise<any[]>;
     /**
@@ -63,15 +78,20 @@ export declare class ThinQAuth {
      */
     private isTokenValid;
     /**
-     * Make an authenticated request to the ThinQ API
+     * Make an authenticated request to the ThinQ API with improved error handling
      */
     private request;
     /**
-     * Get the status of a device
+     * Get device profile from ThinQ API
+     * Based on documentation section 3.1.2
+     */
+    getDeviceProfile(deviceId: string): Promise<any | null>;
+    /**
+     * Get the status of a device with improved error handling
      */
     getDeviceStatus(deviceId: string): Promise<any | null>;
     /**
-     * Send a command to a device
+     * Send a command to a device with improved error handling
      */
     sendDeviceCommand(deviceId: string, commandName: string, command: any): Promise<any>;
     /**

@@ -102,7 +102,7 @@ class LGTVPlatform {
     async discoverDevices() {
         var _a, _b, _c, _d, _e, _f;
         // Get TVs from config
-        const tvs = this.config.tvs || [];
+        let tvs = this.config.tvs || [];
         // Store ThinQ devices if found
         let thinqDevices = [];
         // If ThinQ authentication is enabled, try to get devices from ThinQ API
@@ -148,7 +148,10 @@ class LGTVPlatform {
                 this.log.error('Failed to get devices from ThinQ API:', error);
             }
         }
-        // Loop over the configured TVs
+        // Create a map to track unique TVs and avoid duplicates
+        const processedTVs = [];
+        const seenIdentifiers = new Set();
+        // First pass: enhance TVs with ThinQ data and deduplicate
         for (const tv of tvs) {
             // If we have ThinQ devices, try to match and enhance the TV config
             if (thinqDevices.length > 0 && !tv.deviceId) {
@@ -181,11 +184,47 @@ class LGTVPlatform {
                     }
                 }
             }
+            // Generate a possible unique identifier for the TV
+            let possibleIdentifiers = [];
+            if (tv.mac) {
+                possibleIdentifiers.push(tv.mac.toLowerCase());
+            }
+            if (tv.deviceId) {
+                possibleIdentifiers.push(tv.deviceId);
+            }
+            if (tv.ip) {
+                possibleIdentifiers.push(tv.ip);
+            }
+            // Skip TV if no identifiers
+            if (possibleIdentifiers.length === 0) {
+                if (tv.name) {
+                    // Use name as a last resort identifier
+                    possibleIdentifiers.push(tv.name.toLowerCase());
+                }
+                else {
+                    this.log.error('TV configuration is missing required identifiers (MAC, deviceId, IP, or name). Skipping this TV.');
+                    continue;
+                }
+            }
+            // Check if this TV is already seen
+            const isDuplicate = possibleIdentifiers.some(id => seenIdentifiers.has(id));
+            if (isDuplicate) {
+                this.log.warn(`Found duplicate TV configuration for "${tv.name}". Skipping duplicate.`);
+                continue;
+            }
+            // Add all identifiers to the seen set
+            possibleIdentifiers.forEach(id => seenIdentifiers.add(id));
+            // Add to processed TVs
+            processedTVs.push(tv);
+        }
+        this.log.info(`Processing ${processedTVs.length} unique TV configurations`);
+        // Register or update accessories for each processed TV
+        for (const tv of processedTVs) {
             // Generate a unique id for the accessory
-            // Try to use MAC address first, then deviceId, or finally fallback to name
-            const identifier = tv.mac || tv.deviceId || tv.name;
+            // Try to use MAC address first, then deviceId, then IP, or finally name
+            const identifier = tv.mac || tv.deviceId || tv.ip || tv.name;
             if (!identifier) {
-                this.log.error('TV configuration is missing required identifiers (MAC, deviceId, or name). Skipping this TV.');
+                this.log.error('TV configuration is missing required identifiers. Skipping this TV.');
                 continue;
             }
             const uuid = this.api.hap.uuid.generate(identifier);

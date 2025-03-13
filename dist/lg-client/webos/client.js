@@ -22,10 +22,13 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebOSClient = exports.ConnectionState = void 0;
 const events_1 = require("events");
-const WebSocket = __importStar(require("ws"));
+const ws_1 = __importDefault(require("ws"));
 const wol = __importStar(require("wake_on_lan"));
 const crypto = __importStar(require("crypto"));
 const fs = __importStar(require("fs"));
@@ -111,15 +114,35 @@ class WebOSClient extends events_1.EventEmitter {
      * Connect to the TV
      */
     async connect() {
-        if (this.connectionState !== ConnectionState.DISCONNECTED) {
-            return this.connectionState === ConnectionState.CONNECTED;
+        if (this.connectionState === ConnectionState.CONNECTED) {
+            return true;
+        }
+        if (this.connectionState === ConnectionState.CONNECTING) {
+            this.log.debug('Already connecting to TV');
+            return false;
         }
         this.connectionState = ConnectionState.CONNECTING;
         return new Promise((resolve) => {
             try {
                 // Connect WebSocket to TV
                 this.log.debug(`Connecting to WebOS TV at ${this.ipAddress}`);
-                this.ws = new WebSocket(`ws://${this.ipAddress}:3000`);
+                try {
+                    this.ws = new ws_1.default(`ws://${this.ipAddress}:3000`);
+                }
+                catch (wsError) {
+                    // Try dynamic import if constructor fails
+                    this.log.debug('WebSocket constructor failed, trying dynamic import:', wsError);
+                    try {
+                        const WS = require('ws');
+                        this.ws = new WS(`ws://${this.ipAddress}:3000`);
+                    }
+                    catch (requireError) {
+                        this.log.error('Failed to create WebSocket connection:', requireError);
+                        this.connectionState = ConnectionState.DISCONNECTED;
+                        resolve(false);
+                        return;
+                    }
+                }
                 // Handle WebSocket open event
                 this.ws.on('open', () => {
                     this.log.debug('WebSocket connection established');
@@ -422,7 +445,7 @@ class WebOSClient extends events_1.EventEmitter {
             };
             // Connect to the command socket if not already connected
             if (!this.commandWs && this.commandSocketUrl) {
-                this.commandWs = new WebSocket(this.commandSocketUrl);
+                this.commandWs = new ws_1.default(this.commandSocketUrl);
                 this.commandWs.on('error', (error) => {
                     this.commandWs = null;
                     reject(error);

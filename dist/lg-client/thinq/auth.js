@@ -34,11 +34,11 @@ const path = __importStar(require("path"));
 const CLIENT_ID = 'LGAO221A02';
 // ThinQ gateway URLs
 const GATEWAY_URL = {
-    'US': 'https://us.lgthinq.com',
-    'EU': 'https://eu.lgthinq.com',
-    'KR': 'https://kr.lgthinq.com',
-    'JP': 'https://jp.lgthinq.com',
-    'CN': 'https://cn.lgthinq.com',
+    'US': 'https://kic.lgthinq.com',
+    'EU': 'https://eic.lgthinq.com',
+    'KR': 'https://kic.lgthinq.com',
+    'JP': 'https://jic.lgthinq.com',
+    'CN': 'https://cic.lgthinq.com',
 };
 // Updated API URLs
 const API_BASE_URL = {
@@ -53,17 +53,47 @@ const GATEWAY_PATHS = {
     'login': '/login/sign',
     'oauth': '/login/oauth',
 };
-// API endpoint URLs
+// API endpoint URLs - Updated 2024 paths
 const API_ENDPOINTS = {
-    'gateway': '/application/controllers/api/common/gateway',
-    'thinqUrl': '/service/users/signIn',
-    'devices': 'devices',
+    'gateway': '/api/common/gateway',
+    'thinqUrl': '/api/users/sign',
+    'devices': '/api/devices',
 };
 // LG API secrets
 const LG_API_KEY = 'LGAO221A02';
 const LG_SECRET_KEY = 'nuts_securitykey';
+// Additional ThinQ API endpoints
+const THINQ_API_ENDPOINTS = {
+    'US': 'https://api.smartthinq.com',
+    'EU': 'https://api-eu.smartthinq.com',
+    'KR': 'https://api.smartthinq.com',
+    'JP': 'https://api-jp.smartthinq.com',
+    'CN': 'https://api-cn.smartthinq.com',
+};
 // Language codes
 const DEFAULT_LANGUAGE = 'en-US';
+// Add LG ThinQ API error codes mapping
+// Based on documentation section 7.3
+const THINQ_ERROR_CODES = {
+    // Client errors (1000s)
+    '1000': 'Invalid request parameters',
+    '1001': 'Missing required parameter',
+    '1002': 'Invalid parameter format',
+    '1100': 'Resource not found',
+    '1101': 'Device not found',
+    '1200': 'Authentication error',
+    '1201': 'Invalid token',
+    '1202': 'Not registered user',
+    '1203': 'Permission denied',
+    '1204': 'Token expired',
+    // Server errors (2000s)
+    '2000': 'Internal server error',
+    '2100': 'Device communication error',
+    '2101': 'Device offline',
+    '2102': 'Device operation failed',
+    // Default error
+    'default': 'Unknown error'
+};
 /**
  * ThinQ authentication for LG TVs
  */
@@ -80,6 +110,7 @@ class ThinQAuth {
         this.refreshToken = null;
         this.tokenExpiresAt = 0;
         this.userId = null;
+        this.messageIdCounter = 0;
         this.client = axios_1.default.create({
             baseURL: 'https://us.lgeapi.com/thinq/v1',
             headers: {
@@ -102,6 +133,62 @@ class ThinQAuth {
         }
         // Load saved authentication data if available
         this.loadAuthData();
+    }
+    /**
+     * Generate a unique message ID for request tracking
+     * Based on documentation section 2.3
+     */
+    generateMessageId() {
+        this.messageIdCounter++;
+        const timestamp = Date.now();
+        return `${timestamp}${this.messageIdCounter.toString().padStart(4, '0')}`;
+    }
+    /**
+     * Get standardized headers for API requests
+     * Based on documentation section 2.3
+     */
+    getStandardHeaders(includeAuth = true) {
+        const headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'x-country-code': this.country,
+            'x-message-id': this.generateMessageId()
+        };
+        // Add authorization header if token exists and is requested
+        if (includeAuth && this.accessToken) {
+            headers['Authorization'] = `Bearer ${this.accessToken}`;
+        }
+        // Add API key headers if using the ThinQ API
+        headers['x-thinq-application-key'] = LG_API_KEY;
+        headers['x-thinq-security-key'] = LG_SECRET_KEY;
+        return headers;
+    }
+    /**
+     * Parse error response and get meaningful error message
+     */
+    getErrorMessage(error) {
+        if (error instanceof Error) {
+            if (axios_1.default.isAxiosError(error) && error.response) {
+                const status = error.response.status;
+                const errorData = error.response.data;
+                // Check for ThinQ error format
+                if (errorData && typeof errorData === 'object' && 'error' in errorData && errorData.error) {
+                    const errorObj = errorData.error;
+                    const errorCode = typeof errorObj === 'object' && 'code' in errorObj ? String(errorObj.code) : 'unknown';
+                    const errorMsg = typeof errorObj === 'object' && 'message' in errorObj ?
+                        String(errorObj.message) : 'No error message provided';
+                    // Use mapped error message if available
+                    const mappedError = THINQ_ERROR_CODES[errorCode] || THINQ_ERROR_CODES.default;
+                    return `[${errorCode}] ${mappedError}: ${errorMsg} (HTTP ${status})`;
+                }
+                // Standard error handling
+                return `HTTP ${status}: ${error.message}`;
+            }
+            // Default error handling for Error instances
+            return error.message;
+        }
+        // Handle non-Error objects
+        return String(error);
     }
     /**
      * Get client for API requests
@@ -436,29 +523,36 @@ class ThinQAuth {
         }
     }
     /**
-     * Get devices from ThinQ API
+     * Get devices from ThinQ API with improved error handling and regional endpoints
      */
     async getDevices() {
         try {
             await this.authenticate();
-            // If we have a valid access token, add it to the request headers
-            const headers = {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.accessToken}`,
-            };
-            // Try multiple API endpoints
+            if (!this.accessToken) {
+                this.log.error('No access token available for ThinQ API');
+                return [];
+            }
+            // Get standardized headers for the request
+            const headers = this.getStandardHeaders();
+            // Try multiple API endpoints with regional prioritization
             const endpoints = [
-                'https://us.lgeapi.com/thinq/v1/devices',
+                // Try regional endpoint first based on user's country
+                `${THINQ_API_ENDPOINTS[this.country] || THINQ_API_ENDPOINTS.US}/service/devices`,
+                // Try regional gateway endpoint
+                `${GATEWAY_URL[this.country] || GATEWAY_URL.US}/service/application/devices`,
+                // Then try the common endpoints as fallbacks
                 'https://api.smartthinq.com/service/devices',
-                'https://aic-service.lgthinq.com:46030/v1/service/devices'
+                'https://us.lgeapi.com/thinq/v1/devices',
+                'https://aic-service.lgthinq.com:46030/v1/service/devices',
             ];
+            let lastError;
             for (const endpoint of endpoints) {
                 try {
                     this.log.debug(`Trying to get devices from endpoint: ${endpoint}`);
                     const response = await axios_1.default.get(endpoint, { headers });
                     if (response.status === 200) {
                         let devices = [];
+                        // Handle different response formats
                         if (response.data && response.data.result === 'ok') {
                             devices = response.data.devices || [];
                         }
@@ -468,19 +562,41 @@ class ThinQAuth {
                         else if (response.data && response.data.data) {
                             devices = response.data.data || [];
                         }
-                        this.log.debug(`Found ${devices.length} devices`);
+                        else if (response.data && response.data.item) {
+                            devices = response.data.item || [];
+                        }
+                        this.log.debug(`Found ${devices.length} devices from ${endpoint}`);
                         return devices;
                     }
                 }
                 catch (error) {
-                    this.log.debug(`Failed to get devices from ${endpoint}: ${error.message}`);
+                    lastError = error;
+                    // Fix type checking for error object
+                    const errorMessage = this.getErrorMessage(error);
+                    this.log.debug(`Failed to get devices from ${endpoint}: ${errorMessage}`);
                 }
+            }
+            // If no direct fetch worked, try using the ThinQ request helper
+            try {
+                const devices = await this.request('service/application/devices');
+                if (Array.isArray(devices)) {
+                    this.log.debug(`Found ${devices.length} devices using request helper`);
+                    return devices;
+                }
+            }
+            catch (error) {
+                this.log.debug('Failed to get devices using request helper');
+            }
+            if (lastError) {
+                throw lastError;
             }
             throw new Error('Failed to get devices from any endpoint');
         }
         catch (error) {
-            this.log.error('Failed to get devices from ThinQ API:', error);
-            throw error;
+            const errorMessage = this.getErrorMessage(error);
+            this.log.error(`Failed to get devices from ThinQ API: ${errorMessage}`);
+            // Don't throw - return empty array to allow WebOS-only mode
+            return [];
         }
     }
     /**
@@ -569,7 +685,7 @@ class ThinQAuth {
         return !!this.accessToken && this.tokenExpiresAt > Date.now();
     }
     /**
-     * Make an authenticated request to the ThinQ API
+     * Make an authenticated request to the ThinQ API with improved error handling
      */
     async request(url, method = 'GET', data) {
         try {
@@ -577,11 +693,8 @@ class ThinQAuth {
             if (!await this.authenticate()) {
                 throw new Error('Authentication failed');
             }
-            const headers = {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.accessToken}`,
-            };
+            // Get standardized headers
+            const headers = this.getStandardHeaders();
             let response;
             if (method === 'GET') {
                 response = await this.client.get(url, { headers });
@@ -598,40 +711,142 @@ class ThinQAuth {
             return response.data;
         }
         catch (error) {
-            this.log.error(`ThinQ API request failed (${method} ${url}):`, error);
+            const errorMessage = this.getErrorMessage(error);
+            this.log.error(`ThinQ API request failed (${method} ${url}): ${errorMessage}`);
             throw error;
         }
     }
     /**
-     * Get the status of a device
+     * Get device profile from ThinQ API
+     * Based on documentation section 3.1.2
      */
-    async getDeviceStatus(deviceId) {
+    async getDeviceProfile(deviceId) {
         try {
-            const url = `${this.gateway}/service/devices/${deviceId}/status`;
-            const result = await this.request(url);
-            return result.result;
+            await this.authenticate();
+            if (!this.accessToken) {
+                this.log.error('No access token available for ThinQ API');
+                return null;
+            }
+            // Get standardized headers for the request
+            const headers = this.getStandardHeaders();
+            // Try multiple API endpoints with regional prioritization
+            const endpoints = [
+                // Try regional endpoint first based on user's country
+                `${THINQ_API_ENDPOINTS[this.country] || THINQ_API_ENDPOINTS.US}/service/devices/profile/${deviceId}`,
+                // Try regional gateway endpoint
+                `${GATEWAY_URL[this.country] || GATEWAY_URL.US}/service/devices/profile/${deviceId}`,
+                // Then try the legacy endpoints
+                `https://api.smartthinq.com/service/devices/profile/${deviceId}`,
+                `https://us.lgeapi.com/thinq/v1/devices/profile/${deviceId}`,
+            ];
+            for (const endpoint of endpoints) {
+                try {
+                    this.log.debug(`Trying to get device profile from endpoint: ${endpoint}`);
+                    const response = await axios_1.default.get(endpoint, { headers });
+                    if (response.status === 200 && response.data) {
+                        this.log.debug(`Successfully retrieved device profile from ${endpoint}`);
+                        return response.data;
+                    }
+                }
+                catch (error) {
+                    const errorMessage = this.getErrorMessage(error);
+                    this.log.debug(`Failed to get device profile from ${endpoint}: ${errorMessage}`);
+                }
+            }
+            // If no direct fetch worked, try using the request helper
+            try {
+                return await this.request(`devices/profile/${deviceId}`);
+            }
+            catch (error) {
+                this.log.debug('Failed to get device profile using request helper');
+            }
+            return null;
         }
         catch (error) {
-            this.log.error(`Error getting ThinQ device status for ${deviceId}:`, error);
+            const errorMessage = this.getErrorMessage(error);
+            this.log.error(`Failed to get device profile: ${errorMessage}`);
             return null;
         }
     }
     /**
-     * Send a command to a device
+     * Get the status of a device with improved error handling
+     */
+    async getDeviceStatus(deviceId) {
+        try {
+            // Try multiple API endpoints with regional prioritization
+            const endpoints = [
+                // Regional gateway endpoint (most recent)
+                `${GATEWAY_URL[this.country] || GATEWAY_URL.US}/service/devices/${deviceId}`,
+                // Legacy path
+                `${this.gateway}/service/devices/${deviceId}/status`,
+            ];
+            for (const endpoint of endpoints) {
+                try {
+                    this.log.debug(`Trying to get device status from endpoint: ${endpoint}`);
+                    const result = await this.request(endpoint);
+                    if (result) {
+                        this.log.debug(`Successfully retrieved device status from ${endpoint}`);
+                        // Handle different response formats
+                        if (result.result) {
+                            return result.result;
+                        }
+                        else if (result.status) {
+                            return result.status;
+                        }
+                        else {
+                            return result;
+                        }
+                    }
+                }
+                catch (error) {
+                    const errorMessage = this.getErrorMessage(error);
+                    this.log.debug(`Failed to get device status from ${endpoint}: ${errorMessage}`);
+                }
+            }
+            throw new Error('Failed to get device status from any endpoint');
+        }
+        catch (error) {
+            const errorMessage = this.getErrorMessage(error);
+            this.log.error(`Error getting ThinQ device status for ${deviceId}: ${errorMessage}`);
+            return null;
+        }
+    }
+    /**
+     * Send a command to a device with improved error handling
      */
     async sendDeviceCommand(deviceId, commandName, command) {
         try {
-            const url = `${this.gateway}/service/devices/${deviceId}/control`;
+            // Try multiple API endpoints with regional prioritization
+            const endpoints = [
+                // Regional gateway endpoint (most recent)
+                `${GATEWAY_URL[this.country] || GATEWAY_URL.US}/service/devices/${deviceId}`,
+                // Legacy path
+                `${this.gateway}/service/devices/${deviceId}/control`,
+            ];
             const data = {
                 command: commandName,
                 dataKey: null,
                 dataValue: command,
             };
-            const result = await this.request(url, 'POST', data);
-            return result;
+            for (const endpoint of endpoints) {
+                try {
+                    this.log.debug(`Trying to send command to endpoint: ${endpoint}`);
+                    const result = await this.request(endpoint, 'POST', data);
+                    if (result) {
+                        this.log.debug(`Successfully sent command to ${endpoint}`);
+                        return result;
+                    }
+                }
+                catch (error) {
+                    const errorMessage = this.getErrorMessage(error);
+                    this.log.debug(`Failed to send command to ${endpoint}: ${errorMessage}`);
+                }
+            }
+            throw new Error('Failed to send command to any endpoint');
         }
         catch (error) {
-            this.log.error(`Error sending ThinQ command to ${deviceId}:`, error);
+            const errorMessage = this.getErrorMessage(error);
+            this.log.error(`Error sending ThinQ command to ${deviceId}: ${errorMessage}`);
             throw error;
         }
     }
