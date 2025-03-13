@@ -22,81 +22,81 @@ class LGTVAccessory {
         // Initialize LG client
         this.lgClient = new lg_client_1.LGClient(this.log, accessory.context.config.ip, accessory.context.config.mac, accessory.context.config.clientKey, accessory.context.config.thinqUsername, accessory.context.config.thinqPassword, accessory.context.config.thinqCountry, accessory.context.config.thinqLanguage);
         // Set accessory information
-        this.accessory.getService(this.platform.Service.AccessoryInformation)
-            .setCharacteristic(this.platform.Characteristic.Manufacturer, 'LG Electronics')
-            .setCharacteristic(this.platform.Characteristic.Model, 'C3 OLED TV')
-            .setCharacteristic(this.platform.Characteristic.SerialNumber, accessory.context.config.mac || 'Unknown');
+        this.accessory.getService(this.platform.api.hap.Service.AccessoryInformation)
+            .setCharacteristic(this.platform.api.hap.Characteristic.Manufacturer, 'LG Electronics')
+            .setCharacteristic(this.platform.api.hap.Characteristic.Model, 'C3 OLED TV')
+            .setCharacteristic(this.platform.api.hap.Characteristic.SerialNumber, accessory.context.config.mac || 'Unknown');
         // Television service
-        this.tvService = this.accessory.getService(this.platform.Service.Television) ||
-            this.accessory.addService(this.platform.Service.Television);
+        this.tvService = this.accessory.getService(this.platform.api.hap.Service.Television) ||
+            this.accessory.addService(this.platform.api.hap.Service.Television);
         this.tvService
-            .setCharacteristic(this.platform.Characteristic.Name, this.name)
-            .setCharacteristic(this.platform.Characteristic.ConfiguredName, this.name)
-            .setCharacteristic(this.platform.Characteristic.SleepDiscoveryMode, this.platform.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
+            .setCharacteristic(this.platform.api.hap.Characteristic.Name, this.name)
+            .setCharacteristic(this.platform.api.hap.Characteristic.ConfiguredName, this.name)
+            .setCharacteristic(this.platform.api.hap.Characteristic.SleepDiscoveryMode, this.platform.api.hap.Characteristic.SleepDiscoveryMode.ALWAYS_DISCOVERABLE);
         // Television Active characteristic
-        this.tvService.getCharacteristic(this.platform.Characteristic.Active)
+        this.tvService.getCharacteristic(this.platform.api.hap.Characteristic.Active)
             .onSet(this.setActive.bind(this))
             .onGet(this.getActive.bind(this));
         // Television Active Identifier characteristic (input source)
-        this.tvService.getCharacteristic(this.platform.Characteristic.ActiveIdentifier)
+        this.tvService.getCharacteristic(this.platform.api.hap.Characteristic.ActiveIdentifier)
             .onSet(this.setActiveIdentifier.bind(this))
             .onGet(this.getActiveIdentifier.bind(this));
         // Remote control
-        this.tvService.getCharacteristic(this.platform.Characteristic.RemoteKey)
+        this.tvService.getCharacteristic(this.platform.api.hap.Characteristic.RemoteKey)
             .onSet(this.remoteKeyPress.bind(this));
         // Speaker service
-        this.speakerService = this.accessory.getService(this.platform.Service.TelevisionSpeaker) ||
-            this.accessory.addService(this.platform.Service.TelevisionSpeaker);
+        this.speakerService = this.accessory.getService(this.platform.api.hap.Service.TelevisionSpeaker) ||
+            this.accessory.addService(this.platform.api.hap.Service.TelevisionSpeaker);
         this.speakerService
-            .setCharacteristic(this.platform.Characteristic.Name, `${this.name} Speaker`)
-            .setCharacteristic(this.platform.Characteristic.Active, this.platform.Characteristic.Active.ACTIVE)
-            .setCharacteristic(this.platform.Characteristic.VolumeControlType, this.platform.Characteristic.VolumeControlType.ABSOLUTE);
+            .setCharacteristic(this.platform.api.hap.Characteristic.Name, `${this.name} Speaker`)
+            .setCharacteristic(this.platform.api.hap.Characteristic.Active, this.platform.api.hap.Characteristic.Active.ACTIVE)
+            .setCharacteristic(this.platform.api.hap.Characteristic.VolumeControlType, this.platform.api.hap.Characteristic.VolumeControlType.ABSOLUTE);
         // Speaker mute characteristic
-        this.speakerService.getCharacteristic(this.platform.Characteristic.Mute)
+        this.speakerService.getCharacteristic(this.platform.api.hap.Characteristic.Mute)
             .onSet(this.setMute.bind(this))
             .onGet(this.getMute.bind(this));
         // Speaker volume characteristic
-        this.speakerService.getCharacteristic(this.platform.Characteristic.Volume)
+        this.speakerService.getCharacteristic(this.platform.api.hap.Characteristic.Volume)
             .onSet(this.setVolume.bind(this))
             .onGet(this.getVolume.bind(this));
         // Optional volume slider (as a fan)
         if (accessory.context.config.volumeSlider) {
             this.volumeSliderService = this.accessory.getService('Volume Slider') ||
-                this.accessory.addService(this.platform.Service.Fan, 'Volume Slider', 'volume-slider');
+                this.accessory.addService(this.platform.api.hap.Service.Fan, 'Volume Slider', 'volume-slider');
             this.volumeSliderService
-                .setCharacteristic(this.platform.Characteristic.Name, `${this.name} Volume`)
-                .setCharacteristic(this.platform.Characteristic.Active, this.platform.Characteristic.Active.ACTIVE);
-            this.volumeSliderService.getCharacteristic(this.platform.Characteristic.RotationSpeed)
+                .setCharacteristic(this.platform.api.hap.Characteristic.Name, `${this.name} Volume`)
+                .setCharacteristic(this.platform.api.hap.Characteristic.Active, this.platform.api.hap.Characteristic.Active.ACTIVE);
+            this.volumeSliderService.getCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed)
                 .onSet(this.setVolume.bind(this))
                 .onGet(this.getVolume.bind(this));
         }
         // Optional turn off switch
         if (accessory.context.config.turnOffSwitch) {
             this.turnOffSwitchService = this.accessory.getService('Turn Off') ||
-                this.accessory.addService(this.platform.Service.Switch, 'Turn Off', 'turn-off-switch');
+                this.accessory.addService(this.platform.api.hap.Service.Switch, 'Turn Off', 'turn-off-switch');
             this.turnOffSwitchService
-                .setCharacteristic(this.platform.Characteristic.Name, `Turn Off ${this.name}`);
-            this.turnOffSwitchService.getCharacteristic(this.platform.Characteristic.On)
+                .setCharacteristic(this.platform.api.hap.Characteristic.Name, `Turn Off ${this.name}`);
+            this.turnOffSwitchService.getCharacteristic(this.platform.api.hap.Characteristic.On)
                 .onSet(this.setTurnOffSwitch.bind(this))
                 .onGet(this.getTurnOffSwitch.bind(this));
         }
         // Optional energy saving service
         if (accessory.context.config.energySaving) {
             this.energySavingService = this.accessory.getService('Energy Saving') ||
-                this.accessory.addService(this.platform.Service.Switch, 'Energy Saving', 'energy-saving-switch');
+                this.accessory.addService(this.platform.api.hap.Service.Switch, 'Energy Saving', 'energy-saving-switch');
             this.energySavingService
-                .setCharacteristic(this.platform.Characteristic.Name, `${this.name} Energy Saving`);
-            this.energySavingService.getCharacteristic(this.platform.Characteristic.On)
+                .setCharacteristic(this.platform.api.hap.Characteristic.Name, `${this.name} Energy Saving`);
+            this.energySavingService.getCharacteristic(this.platform.api.hap.Characteristic.On)
                 .onSet(this.setEnergySaving.bind(this))
                 .onGet(this.getEnergySaving.bind(this));
         }
         // Optional AI recommendation service
         if (accessory.context.config.aiRecommendation) {
             this.aiRecommendationService = this.accessory.getService('AI Recommendation') ||
-                this.accessory.addService(this.platform.Service.Switch, 'AI Recommendation', 'ai-recommendation-switch');
+                this.accessory.addService(this.platform.api.hap.Service.Switch, 'AI Recommendation', 'ai-recommendation-switch');
             this.aiRecommendationService
-                .setCharacteristic(this.platform.Characteristic.Name, `${this.name} AI Recommendation`);
-            this.aiRecommendationService.getCharacteristic(this.platform.Characteristic.On)
+                .setCharacteristic(this.platform.api.hap.Characteristic.Name, `${this.name} AI Recommendation`);
+            this.aiRecommendationService.getCharacteristic(this.platform.api.hap.Characteristic.On)
                 .onSet(this.setAIRecommendation.bind(this))
                 .onGet(this.getAIRecommendation.bind(this));
         }
@@ -104,6 +104,20 @@ class LGTVAccessory {
         this.setupInputSources();
         // Connect to the TV and update state
         this.connectToTV();
+    }
+    /**
+     * Helper method to get Characteristic values in a Homebridge v2 compatible way
+     */
+    getCharacteristic(type) {
+        // Use api.hap for Homebridge v2 compatibility
+        return this.platform.api.hap.Characteristic[type];
+    }
+    /**
+     * Helper method to get Service values in a Homebridge v2 compatible way
+     */
+    getService(type) {
+        // Use api.hap for Homebridge v2 compatibility
+        return this.platform.api.hap.Service[type];
     }
     /**
      * Set up TV input sources from configuration
@@ -152,13 +166,13 @@ class LGTVAccessory {
                     this.platform.log.debug(`Removing existing input service: ${serviceId}`);
                     this.accessory.removeService(existingService);
                 }
-                const inputService = this.accessory.addService(this.platform.Service.InputSource, input.name, serviceId);
+                const inputService = this.accessory.addService(this.getService('InputSource'), input.name, serviceId);
                 inputService
-                    .setCharacteristic(this.platform.Characteristic.Identifier, i)
-                    .setCharacteristic(this.platform.Characteristic.ConfiguredName, input.name)
-                    .setCharacteristic(this.platform.Characteristic.IsConfigured, this.platform.Characteristic.IsConfigured.CONFIGURED)
-                    .setCharacteristic(this.platform.Characteristic.InputSourceType, this.getInputSourceType(input.type))
-                    .setCharacteristic(this.platform.Characteristic.CurrentVisibilityState, this.platform.Characteristic.CurrentVisibilityState.SHOWN);
+                    .setCharacteristic(this.getCharacteristic('Identifier'), i)
+                    .setCharacteristic(this.getCharacteristic('ConfiguredName'), input.name)
+                    .setCharacteristic(this.getCharacteristic('IsConfigured'), this.getCharacteristic('IsConfigured').CONFIGURED)
+                    .setCharacteristic(this.getCharacteristic('InputSourceType'), this.getInputSourceType(input.type))
+                    .setCharacteristic(this.getCharacteristic('CurrentVisibilityState'), this.getCharacteristic('CurrentVisibilityState').SHOWN);
                 // Link input to TV service
                 this.tvService.addLinkedService(inputService);
                 this.inputServices.push(inputService);
@@ -172,7 +186,7 @@ class LGTVAccessory {
      * Map input type string to HomeKit InputSourceType
      */
     getInputSourceType(type) {
-        const InputSourceType = this.platform.Characteristic.InputSourceType;
+        const InputSourceType = this.platform.api.hap.Characteristic.InputSourceType;
         switch (type.toLowerCase()) {
             case 'hdmi':
                 return InputSourceType.HDMI;
@@ -201,12 +215,12 @@ class LGTVAccessory {
                 this.log.warn(`Failed to connect to ${this.name}`);
                 this.tvActive = false;
             }
-            this.tvService.updateCharacteristic(this.platform.Characteristic.Active, this.tvActive);
+            this.tvService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.tvActive);
         }
         catch (error) {
             this.log.error(`Error connecting to ${this.name}:`, error);
             this.tvActive = false;
-            this.tvService.updateCharacteristic(this.platform.Characteristic.Active, this.tvActive);
+            this.tvService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.tvActive);
         }
     }
     /**
@@ -221,14 +235,14 @@ class LGTVAccessory {
             const volume = await this.lgClient.getVolume();
             if (typeof volume === 'number') {
                 this.tvVolume = volume;
-                this.speakerService.updateCharacteristic(this.platform.Characteristic.Volume, this.tvVolume);
+                this.speakerService.updateCharacteristic(this.platform.api.hap.Characteristic.Volume, this.tvVolume);
                 if (this.volumeSliderService) {
-                    this.volumeSliderService.updateCharacteristic(this.platform.Characteristic.RotationSpeed, this.tvVolume);
+                    this.volumeSliderService.updateCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed, this.tvVolume);
                 }
             }
             // Update input (not implemented yet, would need to get current input from TV)
             // this.currentInputId = ...
-            // this.tvService.updateCharacteristic(this.platform.Characteristic.ActiveIdentifier, this.getInputIdentifier(this.currentInputId));
+            // this.tvService.updateCharacteristic(this.platform.api.hap.Characteristic.ActiveIdentifier, this.getInputIdentifier(this.currentInputId));
         }
         catch (error) {
             this.log.error(`Error updating TV state for ${this.name}:`, error);
@@ -308,7 +322,7 @@ class LGTVAccessory {
     async remoteKeyPress(value) {
         const key = value;
         this.log.debug(`Remote key pressed: ${key}`);
-        const RemoteKey = this.platform.Characteristic.RemoteKey;
+        const RemoteKey = this.getCharacteristic('RemoteKey');
         switch (key) {
             case RemoteKey.REWIND:
                 await this.lgClient.rewind();
@@ -379,9 +393,9 @@ class LGTVAccessory {
         if (success) {
             this.tvVolume = volume;
             // Update other volume services
-            this.speakerService.updateCharacteristic(this.platform.Characteristic.Volume, this.tvVolume);
+            this.speakerService.updateCharacteristic(this.platform.api.hap.Characteristic.Volume, this.tvVolume);
             if (this.volumeSliderService) {
-                this.volumeSliderService.updateCharacteristic(this.platform.Characteristic.RotationSpeed, this.tvVolume);
+                this.volumeSliderService.updateCharacteristic(this.platform.api.hap.Characteristic.RotationSpeed, this.tvVolume);
             }
         }
     }
@@ -400,11 +414,11 @@ class LGTVAccessory {
             // Turn off the TV when the switch is turned on
             await this.lgClient.powerOff();
             this.tvActive = false;
-            this.tvService.updateCharacteristic(this.platform.Characteristic.Active, this.tvActive);
+            this.tvService.updateCharacteristic(this.platform.api.hap.Characteristic.Active, this.tvActive);
             // Reset the switch after a delay
             setTimeout(() => {
                 var _a;
-                (_a = this.turnOffSwitchService) === null || _a === void 0 ? void 0 : _a.updateCharacteristic(this.platform.Characteristic.On, false);
+                (_a = this.turnOffSwitchService) === null || _a === void 0 ? void 0 : _a.updateCharacteristic(this.platform.api.hap.Characteristic.On, false);
             }, 1000);
         }
     }

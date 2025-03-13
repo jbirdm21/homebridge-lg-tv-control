@@ -43,7 +43,7 @@ class LGTVPlatform {
         this.accessories = [];
         this.configuredTVs = [];
         this.log.debug('Finished initializing platform:', this.config.name);
-        // Initialize HAP Service and Characteristic
+        // Initialize HAP Service and Characteristic - using api.hap for Homebridge v2 compatibility
         this.Service = this.api.hap.Service;
         this.Characteristic = this.api.hap.Characteristic;
         // Initialize ThinQ authentication if credentials are provided

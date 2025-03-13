@@ -24,6 +24,14 @@ export declare class LGTVAccessory {
     private aiRecommendationEnabled;
     constructor(platform: LGTVPlatform, accessory: PlatformAccessory);
     /**
+     * Helper method to get Characteristic values in a Homebridge v2 compatible way
+     */
+    private getCharacteristic;
+    /**
+     * Helper method to get Service values in a Homebridge v2 compatible way
+     */
+    private getService;
+    /**
      * Set up TV input sources from configuration
      */
     private setupInputSources;
