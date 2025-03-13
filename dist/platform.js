@@ -100,14 +100,49 @@ class LGTVPlatform {
      * must not be registered again to prevent "duplicate UUID" errors.
      */
     async discoverDevices() {
+        var _a, _b, _c, _d, _e, _f;
         // Get TVs from config
         const tvs = this.config.tvs || [];
+        // Store ThinQ devices if found
+        let thinqDevices = [];
         // If ThinQ authentication is enabled, try to get devices from ThinQ API
         if (this.thinqAuth) {
             try {
-                const devices = await this.thinqAuth.getDevices();
-                this.log.debug('ThinQ devices:', devices);
-                // TODO: Match ThinQ devices with configured TVs
+                this.log.debug('Attempting to retrieve devices from ThinQ API...');
+                thinqDevices = await this.thinqAuth.getDevices();
+                this.log.debug(`Found ${thinqDevices.length} devices from ThinQ API`);
+                // If autoDiscover is enabled, add any TVs found in ThinQ that are not in the config
+                if (this.config.autoDiscover && thinqDevices.length > 0) {
+                    // Filter for TV devices only
+                    const tvDevices = thinqDevices.filter(device => device.type === 'TV' ||
+                        device.deviceType === 'TV' ||
+                        (device.modelName && device.modelName.includes('TV')));
+                    this.log.debug(`Found ${tvDevices.length} TV devices from ThinQ API`);
+                    // Add any TVs not already in the config
+                    for (const tvDevice of tvDevices) {
+                        const deviceName = tvDevice.name || tvDevice.alias || tvDevice.modelName || 'LG TV';
+                        const deviceId = tvDevice.deviceId || tvDevice.id;
+                        // Check if this TV is already in the config by deviceId or name
+                        const existingTv = tvs.find(tv => (tv.deviceId && tv.deviceId === deviceId) ||
+                            (tv.name && deviceName && tv.name.toLowerCase() === deviceName.toLowerCase()));
+                        if (!existingTv) {
+                            this.log.info(`Auto-discovered TV from ThinQ: ${deviceName}`);
+                            // Create a new TV config
+                            const newTv = {
+                                name: deviceName,
+                                deviceId: deviceId,
+                                // Use IP and MAC from ThinQ if available
+                                ip: tvDevice.ip || ((_a = tvDevice.networkInfo) === null || _a === void 0 ? void 0 : _a.ip),
+                                mac: tvDevice.mac || ((_b = tvDevice.networkInfo) === null || _b === void 0 ? void 0 : _b.macAddress),
+                                volumeSlider: true,
+                                turnOffSwitch: true,
+                                energySaving: true,
+                                inputs: [{ type: 'HDMI' }]
+                            };
+                            tvs.push(newTv);
+                        }
+                    }
+                }
             }
             catch (error) {
                 this.log.error('Failed to get devices from ThinQ API:', error);
@@ -115,8 +150,45 @@ class LGTVPlatform {
         }
         // Loop over the configured TVs
         for (const tv of tvs) {
-            // Generate a unique id for the accessory based on the MAC address
-            const uuid = this.api.hap.uuid.generate(tv.mac);
+            // If we have ThinQ devices, try to match and enhance the TV config
+            if (thinqDevices.length > 0 && !tv.deviceId) {
+                const matchingDevice = thinqDevices.find(device => {
+                    // Match by IP if available
+                    if (tv.ip && device.ip && tv.ip === device.ip) {
+                        return true;
+                    }
+                    // Match by MAC if available
+                    if (tv.mac && device.mac && tv.mac.toLowerCase() === device.mac.toLowerCase()) {
+                        return true;
+                    }
+                    // Match by name as last resort
+                    if (tv.name && device.name && tv.name.toLowerCase() === device.name.toLowerCase()) {
+                        return true;
+                    }
+                    return false;
+                });
+                if (matchingDevice) {
+                    this.log.debug(`Matched TV ${tv.name} with ThinQ device ${matchingDevice.name || matchingDevice.modelName}`);
+                    // Enhance the TV config with ThinQ information
+                    tv.deviceId = matchingDevice.deviceId || matchingDevice.id;
+                    tv.modelName = matchingDevice.modelName || tv.modelName;
+                    // If IP or MAC are missing, add from ThinQ
+                    if (!tv.ip && (matchingDevice.ip || ((_c = matchingDevice.networkInfo) === null || _c === void 0 ? void 0 : _c.ip))) {
+                        tv.ip = matchingDevice.ip || ((_d = matchingDevice.networkInfo) === null || _d === void 0 ? void 0 : _d.ip);
+                    }
+                    if (!tv.mac && (matchingDevice.mac || ((_e = matchingDevice.networkInfo) === null || _e === void 0 ? void 0 : _e.macAddress))) {
+                        tv.mac = matchingDevice.mac || ((_f = matchingDevice.networkInfo) === null || _f === void 0 ? void 0 : _f.macAddress);
+                    }
+                }
+            }
+            // Generate a unique id for the accessory
+            // Try to use MAC address first, then deviceId, or finally fallback to name
+            const identifier = tv.mac || tv.deviceId || tv.name;
+            if (!identifier) {
+                this.log.error('TV configuration is missing required identifiers (MAC, deviceId, or name). Skipping this TV.');
+                continue;
+            }
+            const uuid = this.api.hap.uuid.generate(identifier);
             // Check if an accessory with the same uuid has already been registered and restored from
             // the cached devices we stored in the `configureAccessory` method above
             const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);

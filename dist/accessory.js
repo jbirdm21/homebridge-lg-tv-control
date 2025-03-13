@@ -106,27 +106,66 @@ class LGTVAccessory {
         this.connectToTV();
     }
     /**
-     * Set up input sources from config
+     * Set up TV input sources from configuration
      */
     setupInputSources() {
         const inputs = this.accessory.context.config.inputs || [];
+        // Ensure we have unique names for each input
+        const processedInputs = inputs.map((input, index) => {
+            // If input doesn't have a name, generate one based on type and index
+            if (!input.name) {
+                input.name = input.type ? `${input.type} ${index + 1}` : `Input ${index + 1}`;
+            }
+            return input;
+        });
+        // Check for duplicate names and make them unique
+        const inputNames = new Set();
+        processedInputs.forEach((input) => {
+            let uniqueName = input.name;
+            let counter = 1;
+            // If the name already exists, append a number to make it unique
+            while (inputNames.has(uniqueName)) {
+                uniqueName = `${input.name} ${counter}`;
+                counter++;
+            }
+            // Update the input name to the unique version
+            input.name = uniqueName;
+            inputNames.add(uniqueName);
+        });
         // Remove any existing input services
         this.inputServices.forEach(service => {
-            this.accessory.removeService(service);
+            try {
+                this.accessory.removeService(service);
+            }
+            catch (error) {
+                this.platform.log.warn(`Error removing input service: ${error}`);
+            }
         });
         this.inputServices = [];
-        // Add input services from config
-        inputs.forEach((input, i) => {
-            const inputService = this.accessory.addService(this.platform.Service.InputSource, input.name, `input-${i}`);
-            inputService
-                .setCharacteristic(this.platform.Characteristic.Identifier, i)
-                .setCharacteristic(this.platform.Characteristic.ConfiguredName, input.name)
-                .setCharacteristic(this.platform.Characteristic.IsConfigured, this.platform.Characteristic.IsConfigured.CONFIGURED)
-                .setCharacteristic(this.platform.Characteristic.InputSourceType, this.getInputSourceType(input.type))
-                .setCharacteristic(this.platform.Characteristic.CurrentVisibilityState, this.platform.Characteristic.CurrentVisibilityState.SHOWN);
-            // Link input to TV service
-            this.tvService.addLinkedService(inputService);
-            this.inputServices.push(inputService);
+        // Add input services from config with unique identifiers
+        processedInputs.forEach((input, i) => {
+            try {
+                const serviceId = `input-${i}`;
+                // Check if the service already exists
+                const existingService = this.accessory.getService(serviceId);
+                if (existingService) {
+                    this.platform.log.debug(`Removing existing input service: ${serviceId}`);
+                    this.accessory.removeService(existingService);
+                }
+                const inputService = this.accessory.addService(this.platform.Service.InputSource, input.name, serviceId);
+                inputService
+                    .setCharacteristic(this.platform.Characteristic.Identifier, i)
+                    .setCharacteristic(this.platform.Characteristic.ConfiguredName, input.name)
+                    .setCharacteristic(this.platform.Characteristic.IsConfigured, this.platform.Characteristic.IsConfigured.CONFIGURED)
+                    .setCharacteristic(this.platform.Characteristic.InputSourceType, this.getInputSourceType(input.type))
+                    .setCharacteristic(this.platform.Characteristic.CurrentVisibilityState, this.platform.Characteristic.CurrentVisibilityState.SHOWN);
+                // Link input to TV service
+                this.tvService.addLinkedService(inputService);
+                this.inputServices.push(inputService);
+            }
+            catch (error) {
+                this.platform.log.error(`Error adding input service ${input.name}: ${error}`);
+            }
         });
     }
     /**

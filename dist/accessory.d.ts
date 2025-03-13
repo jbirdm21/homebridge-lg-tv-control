@@ -24,7 +24,7 @@ export declare class LGTVAccessory {
     private aiRecommendationEnabled;
     constructor(platform: LGTVPlatform, accessory: PlatformAccessory);
     /**
-     * Set up input sources from config
+     * Set up TV input sources from configuration
      */
     private setupInputSources;
     /**

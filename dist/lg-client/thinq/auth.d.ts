@@ -23,9 +23,9 @@ export declare class ThinQAuth {
      */
     getClient(): Promise<any>;
     /**
-     * Ensure the client is authenticated
+     * Ensure the client is authenticated and set up with proper headers
      */
-    private ensureAuthenticated;
+    authenticate(): Promise<boolean>;
     /**
      * Login to ThinQ API
      */
@@ -62,10 +62,6 @@ export declare class ThinQAuth {
      * Check if the token is valid
      */
     private isTokenValid;
-    /**
-     * Authenticate with the ThinQ API
-     */
-    authenticate(): Promise<boolean>;
     /**
      * Make an authenticated request to the ThinQ API
      */

@@ -101,14 +101,59 @@ export class LGTVPlatform implements DynamicPlatformPlugin {
   async discoverDevices(): Promise<void> {
     // Get TVs from config
     const tvs = this.config.tvs || [];
+    
+    // Store ThinQ devices if found
+    let thinqDevices: any[] = [];
 
     // If ThinQ authentication is enabled, try to get devices from ThinQ API
     if (this.thinqAuth) {
       try {
-        const devices = await this.thinqAuth.getDevices();
-        this.log.debug('ThinQ devices:', devices);
-
-        // TODO: Match ThinQ devices with configured TVs
+        this.log.debug('Attempting to retrieve devices from ThinQ API...');
+        thinqDevices = await this.thinqAuth.getDevices();
+        this.log.debug(`Found ${thinqDevices.length} devices from ThinQ API`);
+        
+        // If autoDiscover is enabled, add any TVs found in ThinQ that are not in the config
+        if (this.config.autoDiscover && thinqDevices.length > 0) {
+          // Filter for TV devices only
+          const tvDevices = thinqDevices.filter(device => 
+            device.type === 'TV' || 
+            device.deviceType === 'TV' || 
+            (device.modelName && device.modelName.includes('TV'))
+          );
+          
+          this.log.debug(`Found ${tvDevices.length} TV devices from ThinQ API`);
+          
+          // Add any TVs not already in the config
+          for (const tvDevice of tvDevices) {
+            const deviceName = tvDevice.name || tvDevice.alias || tvDevice.modelName || 'LG TV';
+            const deviceId = tvDevice.deviceId || tvDevice.id;
+            
+            // Check if this TV is already in the config by deviceId or name
+            const existingTv = tvs.find(tv => 
+              (tv.deviceId && tv.deviceId === deviceId) || 
+              (tv.name && deviceName && tv.name.toLowerCase() === deviceName.toLowerCase())
+            );
+            
+            if (!existingTv) {
+              this.log.info(`Auto-discovered TV from ThinQ: ${deviceName}`);
+              
+              // Create a new TV config
+              const newTv = {
+                name: deviceName,
+                deviceId: deviceId,
+                // Use IP and MAC from ThinQ if available
+                ip: tvDevice.ip || tvDevice.networkInfo?.ip,
+                mac: tvDevice.mac || tvDevice.networkInfo?.macAddress,
+                volumeSlider: true,
+                turnOffSwitch: true,
+                energySaving: true,
+                inputs: [{ type: 'HDMI' }]
+              };
+              
+              tvs.push(newTv);
+            }
+          }
+        }
       } catch (error) {
         this.log.error('Failed to get devices from ThinQ API:', error);
       }
@@ -116,8 +161,54 @@ export class LGTVPlatform implements DynamicPlatformPlugin {
 
     // Loop over the configured TVs
     for (const tv of tvs) {
-      // Generate a unique id for the accessory based on the MAC address
-      const uuid = this.api.hap.uuid.generate(tv.mac);
+      // If we have ThinQ devices, try to match and enhance the TV config
+      if (thinqDevices.length > 0 && !tv.deviceId) {
+        const matchingDevice = thinqDevices.find(device => {
+          // Match by IP if available
+          if (tv.ip && device.ip && tv.ip === device.ip) {
+            return true;
+          }
+          
+          // Match by MAC if available
+          if (tv.mac && device.mac && tv.mac.toLowerCase() === device.mac.toLowerCase()) {
+            return true;
+          }
+          
+          // Match by name as last resort
+          if (tv.name && device.name && tv.name.toLowerCase() === device.name.toLowerCase()) {
+            return true;
+          }
+          
+          return false;
+        });
+        
+        if (matchingDevice) {
+          this.log.debug(`Matched TV ${tv.name} with ThinQ device ${matchingDevice.name || matchingDevice.modelName}`);
+          
+          // Enhance the TV config with ThinQ information
+          tv.deviceId = matchingDevice.deviceId || matchingDevice.id;
+          tv.modelName = matchingDevice.modelName || tv.modelName;
+          
+          // If IP or MAC are missing, add from ThinQ
+          if (!tv.ip && (matchingDevice.ip || matchingDevice.networkInfo?.ip)) {
+            tv.ip = matchingDevice.ip || matchingDevice.networkInfo?.ip;
+          }
+          
+          if (!tv.mac && (matchingDevice.mac || matchingDevice.networkInfo?.macAddress)) {
+            tv.mac = matchingDevice.mac || matchingDevice.networkInfo?.macAddress;
+          }
+        }
+      }
+      
+      // Generate a unique id for the accessory
+      // Try to use MAC address first, then deviceId, or finally fallback to name
+      const identifier = tv.mac || tv.deviceId || tv.name;
+      if (!identifier) {
+        this.log.error('TV configuration is missing required identifiers (MAC, deviceId, or name). Skipping this TV.');
+        continue;
+      }
+      
+      const uuid = this.api.hap.uuid.generate(identifier);
 
       // Check if an accessory with the same uuid has already been registered and restored from
       // the cached devices we stored in the `configureAccessory` method above
